@@ -5,7 +5,8 @@ Use this client library to gain full access to the UserApp API from your JavaScr
 
 ## How do I start?
 
-1. Sign up for an account at https://www.userapp.io/
+1. Sign up for an account at [https://www.userapp.io/](https://www.userapp.io/).
+3. Get your App Id ([https://help.userapp.io/customer/portal/articles/1322336-how-do-i-find-my-app-id-](https://help.userapp.io/customer/portal/articles/1322336-how-do-i-find-my-app-id-)).
 2. Include `userapp.client.js` on your site.
 3. Initialize UserApp by running `UserApp.initialize({appId:'YOUR APP ID'});`.
 4. Try it out!
