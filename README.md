@@ -3,6 +3,16 @@ UserApp API JavaScript Client
 
 Use this client library to gain full access to the UserApp API from your JavaScript application.
 
+## Install with bower
+
+`$ bower install userapp`
+
+Add a `<script>` to your `index.html`:
+
+```html
+<script src="/bower_components/userapp/userapp.client.js"></script>
+```
+
 ## How do I start?
 
 1. Sign up for an account at [https://www.userapp.io/](https://www.userapp.io/).
