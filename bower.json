@@ -1,0 +1,5 @@
+{
+	"name": "userapp",
+	"version": "1.0.0",
+	"main": "./userapp.client.js"
+}
