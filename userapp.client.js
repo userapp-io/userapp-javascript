@@ -850,3 +850,115 @@ UserApp.Export.stream = function(arguments, callback){
 UserApp.Export.prototype.stream = function(callback){
 	UserApp.Export.stream(callback);
 };
+
+
+// OAuth
+
+UserApp.OAuth = function(appId, token){
+	this.appId = appId == undefined || appId == null ? UserApp.global.appId : appId;
+	this.token = token == undefined || token == null ? UserApp.global.token : token;
+};
+
+// Consume an oauth callback token
+
+UserApp.OAuth.getAuthorizationUrl = function(arguments, callback){
+	UserApp.Transport.Current.call(this, 1, 'oauth.getAuthorizationUrl', arguments, callback);
+};
+
+UserApp.OAuth.prototype.getAuthorizationUrl = function(callback){
+	UserApp.OAuth.getAuthorizationUrl(callback);
+};
+
+// Consume an oauth callback token
+
+UserApp.OAuth.consume = function(arguments, callback){
+	UserApp.Transport.Current.call(this, 1, 'oauth.consume', arguments, callback);
+};
+
+UserApp.OAuth.prototype.consume = function(callback){
+	UserApp.OAuth.consume(callback);
+};
+
+// Request an oauth resource
+
+UserApp.OAuth.request = function(arguments, callback){
+	UserApp.Transport.Current.call(this, 1, 'oauth.request', arguments, callback);
+};
+
+UserApp.OAuth.prototype.request = function(callback){
+	UserApp.OAuth.request(callback);
+};
+
+// OAuth Connection
+
+UserApp.OAuth.Connection = function(appId, token){
+	this.appId = appId == undefined || appId == null ? UserApp.global.appId : appId;
+	this.token = token == undefined || token == null ? UserApp.global.token : token;
+};
+
+// Find OAuth connections
+
+UserApp.OAuth.Connection.search = function(arguments, callback){
+	UserApp.Transport.Current.call(this, 1, 'oauth.connection.search', arguments, callback);
+};
+
+UserApp.OAuth.Connection.prototype.search = function(callback){
+	UserApp.OAuth.Connection.search(callback);
+};
+
+// Get OAuth connections
+
+UserApp.OAuth.Connection.get = function(arguments, callback){
+	UserApp.Transport.Current.call(this, 1, 'oauth.connection.get', arguments, callback);
+};
+
+UserApp.OAuth.Connection.prototype.get = function(callback){
+	UserApp.OAuth.Connection.get(callback);
+};
+
+// Remove OAuth connections
+
+UserApp.OAuth.Connection.remove = function(arguments, callback){
+	UserApp.Transport.Current.call(this, 1, 'oauth.connection.remove', arguments, callback);
+};
+
+UserApp.OAuth.Connection.prototype.remove = function(callback){
+	UserApp.OAuth.Connection.remove(callback);
+};
+
+// OAuth Provider
+
+UserApp.OAuth.Provider = function(appId, token){
+	this.appId = appId == undefined || appId == null ? UserApp.global.appId : appId;
+	this.token = token == undefined || token == null ? UserApp.global.token : token;
+};
+
+// Get
+
+UserApp.OAuth.Provider.get = function(arguments, callback){
+	UserApp.Transport.Current.call(this, 1, 'oauth.provider.get', arguments, callback);
+};
+
+UserApp.OAuth.Provider.prototype.get = function(callback){
+	UserApp.OAuth.Provider.get(callback);
+};
+
+// Search
+
+UserApp.OAuth.Provider.search = function(arguments, callback){
+	UserApp.Transport.Current.call(this, 1, 'oauth.provider.search', arguments, callback);
+};
+
+UserApp.OAuth.Provider.prototype.search = function(callback){
+	UserApp.OAuth.Provider.search(callback);
+};
+
+// Save
+
+UserApp.OAuth.Provider.save = function(arguments, callback){
+	UserApp.Transport.Current.call(this, 1, 'oauth.provider.save', arguments, callback);
+};
+
+UserApp.OAuth.Provider.prototype.save = function(callback){
+	UserApp.OAuth.Provider.save(callback);
+};
