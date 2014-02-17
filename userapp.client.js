@@ -302,6 +302,26 @@ UserApp.User.prototype.changePassword = function(arguments, callback){
 	UserApp.User.changePassword(arguments, callback);
 };
 
+// Verify Email
+
+UserApp.User.verifyEmail = function(arguments, callback){
+	UserApp.Transport.Current.call(this, 1, 'user.verifyEmail', arguments, callback);
+};
+
+UserApp.User.prototype.verifyEmail = function(arguments, callback){
+	UserApp.User.verifyEmail(arguments, callback);
+};
+
+// Request Email Verification
+
+UserApp.User.requestEmailVerification = function(arguments, callback){
+	UserApp.Transport.Current.call(this, 1, 'user.requestEmailVerification', arguments, callback);
+};
+
+UserApp.User.prototype.requestEmailVerification = function(arguments, callback){
+	UserApp.User.requestEmailVerification(arguments, callback);
+};
+
 // Plan
 
 UserApp.User.setPlan = function(arguments, callback){
