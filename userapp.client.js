@@ -1,3 +1,5 @@
+//"use strict";
+
 var UserApp = window.UserApp || {};
 
 // Backward compatibility support
@@ -19,12 +21,93 @@ UserApp.global = {
 	secure: false
 };
 
-// Transport
-// The layer which handles the communication with UserApp.
+/// Transport
 
-UserApp.Transport = {Current: null};
+// Utilities
 
-UserApp.Transport.encodeArguments = function(source, prefix, skipIndex){
+// Base64
+// Copyright (c) 2010 Nick Galbreath
+// https://code.google.com/p/stringencoders/
+
+Base64 = {};
+Base64.PADCHAR = '=';
+Base64.ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+Base64.getbyte = function(s,i) {
+    var x = s.charCodeAt(i);
+    if (x > 255) {
+        throw "INVALID_CHARACTER_ERR: DOM Exception 5";
+    }
+    return x;
+};
+
+Base64.encode = function(s) {
+    if (arguments.length != 1) {
+        throw "SyntaxError: Not enough arguments";
+    }
+
+    var padchar = Base64.PADCHAR;
+    var alpha   = Base64.ALPHA;
+    var getbyte = Base64.getbyte;
+
+    var i, b10;
+    var x = [];
+
+    // convert to string
+    s = "" + s;
+
+    var imax = s.length - s.length % 3;
+
+    if (s.length == 0) {
+        return s;
+    }
+
+    for (i = 0; i < imax; i += 3) {
+        b10 = (getbyte(s,i) << 16) | (getbyte(s,i+1) << 8) | getbyte(s,i+2);
+        x.push(alpha.charAt(b10 >> 18));
+        x.push(alpha.charAt((b10 >> 12) & 0x3F));
+        x.push(alpha.charAt((b10 >> 6) & 0x3f));
+        x.push(alpha.charAt(b10 & 0x3f));
+    }
+
+    switch (s.length - imax) {
+	    case 1:
+	        b10 = getbyte(s,i) << 16;
+	        x.push(alpha.charAt(b10 >> 18) + alpha.charAt((b10 >> 12) & 0x3F) +
+	               padchar + padchar);
+	        break;
+	    case 2:
+	        b10 = (getbyte(s,i) << 16) | (getbyte(s,i+1) << 8);
+	        x.push(alpha.charAt(b10 >> 18) + alpha.charAt((b10 >> 12) & 0x3F) +
+	               alpha.charAt((b10 >> 6) & 0x3f) + padchar);
+	        break;
+    }
+
+    return x.join('');
+};
+
+var parseResponseHeaders = function (rawValue) {
+    var headers = {};
+
+    if (!rawValue) {
+        return headers;
+    }
+
+    var items = rawValue.split('\u000d\u000a');
+    for (var i = 0; i < items.length; ++i) {
+        var item = items[i];
+        var index = item.indexOf('\u003a\u0020');
+        if (index > 0) {
+            var key = item.substring(0, index);
+            var val = item.substring(index + 2);
+            headers[key] = val;
+        }
+    }
+
+    return headers;
+};
+
+var encodeArguments = function(source, prefix, skipIndex){
     var result = [];
     
     for(var index in source){
@@ -50,7 +133,7 @@ UserApp.Transport.encodeArguments = function(source, prefix, skipIndex){
         }
 
         result.push(typeof value == "object" ?
-        	UserApp.Transport.encodeArguments(value, key, value instanceof Array) :
+        	encodeArguments(value, key, value instanceof Array) :
         	key + "=" + encodeURIComponent(value)
     	);
     }
@@ -58,44 +141,230 @@ UserApp.Transport.encodeArguments = function(source, prefix, skipIndex){
     return result.join("&");
 };
 
-var JsonpTransport = UserApp.Transport.JsonpTransport = function(baseAddress, msTimeout){
-	this.offset = 0;
-	this.callbacks = {};
-	this.baseAddress = baseAddress || UserApp.global.baseAddress;
-	this.msTimeout = msTimeout || 1000*20;
+var getHeaders = function (xhr) {
+    if ("getAllResponseHeaders" in xhr) {
+        return parseResponseHeaders(xhr.getAllResponseHeaders());
+    }
+
+    return {};
 };
 
-JsonpTransport.prototype.call = function(sender, version, method, arguments, callback, visit){
-	var outerScope = this;
-	sender = sender || UserApp.global;
+// For JSONP support
 
-	var cleanupRequest = null;
-	var timeoutCallback = null;
+var JsonpContext = {
+    callbacks: {},
+    call_offset: 0
+};
 
-	var timestamp = Math.floor((new Date().getTime()/1000)-1373133713); // Cache buster (seconds since UserApp epoch!)
-	var callbackId = 'ua_' + (++this.offset) + '_' + timestamp;
+var JsonpHttpRequest = function () {
+    this.url = null;
+    this.offset = 0;
+    this.callback = null;
+    this.msTimeout = 1000 * 20;
+    this.credentials = {username: null, password: null};
+};
 
-	var serviceArguments = {};
-	serviceArguments["app_id"] = sender.appId || UserApp.global.appId;
-	serviceArguments["token"] = sender.token || UserApp.global.token;
+JsonpHttpRequest.prototype.open = function (method, url) {
+    this.url = url;
+};
 
-	if(arguments){
-		for(var key in arguments){
-			serviceArguments[key] = arguments[key];
+JsonpHttpRequest.prototype.onload = function (callback) {
+    this.callback = callback;
+};
+
+JsonpHttpRequest.prototype.onerror = function (callback) {
+    this.callback = callback;
+};
+
+JsonpHttpRequest.prototype.setCredentials = function (username, password) {
+	this.credentials.username = username || null;
+	this.credentials.password = password || null;
+};
+
+JsonpHttpRequest.prototype.send = function (body) {
+    var outerScope = this;
+	body = body || {};
+
+    var cleanupRequest = null;
+    var timeoutCallback = null;
+
+    var timestamp = Math.floor((new Date().getTime() / 1000) - 1373133713);
+    var callbackId = 'call_' + (++JsonpContext.call_offset) + '_' + timestamp;
+    body["js_callback"] = callbackId;
+
+    if(this.credentials.username){
+    	body['app_id'] = this.credentials.username;
+    }
+
+    if(this.credentials.password){
+    	body['token'] = this.credentials.password;
+    }
+
+    var script = document.createElement('script');
+    script.setAttribute('async', true);
+    script.setAttribute('src', this.url + (this.url.indexOf("?") == -1 ? '?' : '&') + encodeArguments(body));
+    script.setAttribute('type', 'text/javascript');
+
+    if (this.callback) {
+        JsonpContext.callbacks[callbackId] = this.callback;
+
+        cleanupRequest = function () {
+            delete window[callbackId];
+            delete JsonpContext.callbacks[callbackId];
+        };
+
+        timeoutCallback = setTimeout(function () {
+            JsonpContext.callbacks[callbackId]({
+                code: 'CONNECTION_ERROR',
+                message: 'Request timed out.'
+            });
+
+            cleanupRequest();
+        }, this.msTimeout);
+    }
+
+    window[callbackId] = function (result) {
+        if (callbackId in JsonpContext.callbacks) {
+            if (timeoutCallback) {
+                clearTimeout(timeoutCallback);
+            }
+
+            JsonpContext.callbacks[callbackId](null, {
+                status: 200,
+                response: result,
+                headers: {}
+            });
+
+            if (cleanupRequest) {
+                cleanupRequest();
+            }
+        }
+    };
+
+    document.getElementsByTagName('head')[0]
+        .appendChild(script);
+};
+
+JsonpHttpRequest.prototype.setRequestHeader = function(){
+	// Dummy
+};
+
+var HttpRequest = function (options) {
+    this.jsonp = options.jsonp === false ? false : true;
+    this.base_url = options.base_url || null;
+    this.headers = options.headers || {};
+    this.credentials = {username: null, password: null};
+};
+
+HttpRequest.prototype.setCredentials = function (username, password) {
+	this.credentials.username = username || null;
+	this.credentials.password = password || null;
+};
+
+HttpRequest.prototype.create = function (method, path, body, callback) {
+    var outer_scope = this;
+    callback = callback || function(){}; 
+
+    var passRawCallback = false;
+    var url = this.base_url + path;
+    var xhr = new XMLHttpRequest();
+
+    if(!("withCredentials" in xhr)){
+        if ((typeof XDomainRequest != "undefined")) {
+            xhr = new XDomainRequest(); // IE
+        } else if (this.jsonp) {
+            passRawCallback = true;
+            xhr = new JsonpHttpRequest(); // Failover to JSONP
+        } else {
+            return callback({
+                code: 'MISSING_HTTP_PROVIDER',
+                message:'Unable to make HTTP requests. No provider supported.'}
+            );
+        }
+    }
+   	
+    if(xhr.setCredentials){
+    	xhr.setCredentials(this.credentials.username, this.credentials.password);
+    }else{
+		this.headers["Authorization"] = "Basic " + Base64.encode((this.credentials.username || "")
+			+ ':' + (this.credentials.password||""));
+	}
+
+	xhr.open(method, url, true);
+
+    if (xhr) {
+        if (passRawCallback) {
+            xhr.callback = callback;
+        }
+
+        xhr.onload = function (event) {
+            var headers = getHeaders(event.target);
+
+            callback(null, {
+                status: event.target.status,
+                response: JSON.parse(event.target.responseText),
+                headers: headers
+            });
+        };
+
+        xhr.onerror = function (event) {
+            callback({
+                code: 'CONNECTION_ERROR',
+                message: "Unable to load '" + url + "'."
+            });
+        };
+
+        for (var key in outer_scope.headers) {
+            xhr.setRequestHeader(key, outer_scope.headers[key]);
+        }
+
+        try {
+        	if(!passRawCallback){
+        		body=JSON.stringify(body);
+        	}
+            xhr.send(body);
+        } catch (error) {
+            callback(error);
+        }
+    }
+};
+
+var Transport = function(){};
+
+Transport.prototype.call = function(sender, version, method, arguments, callback, visit){
+    callback = callback || function(){};
+
+	var isDebugMode = sender.debug || UserApp.global.debug;
+	var protocol = (sender.secure || UserApp.global.secure) ? 'https' : 'http';
+	var baseAddress = protocol + "://" + (sender.baseAddress || UserApp.global.baseAddress);
+	var targetPath = '/v' + version + '/' + method;
+
+	if(visit){
+		arguments = arguments || {};
+		arguments["app_id"] = sender.appId || UserApp.global.appId;
+		arguments["token"] = sender.token || UserApp.global.token;
+		document.location = baseAddress + targetPath + '?' + encodeArguments(arguments);
+		return;
+	}
+
+	var httpRequest = new HttpRequest({
+		base_url: baseAddress,
+		headers: {
+			'Content-Type':'application/json'
 		}
-	}
+	});
 
-	serviceArguments["js_callback"] = callbackId;
+	httpRequest.setCredentials(
+		sender.appId || UserApp.global.appId,
+		sender.token || UserApp.global.token
+	);
 
-	if(UserApp.global.debug){
-		serviceArguments["$beautify"] = null;
-		serviceArguments["$debug"] = null;
-	}
+	if(isDebugMode){
+		targetPath += '?$debug&$beautify';
 
-	// If we're in debug mode. Provide a default callback if not provided.
-	if(UserApp.global.debug){
-		console.log("Calling method " + method + " with arguments " + JSON.stringify(serviceArguments));
+		console.log("Calling method " + method + " with arguments " + JSON.stringify(arguments));
 		var shadowedCallback = callback;
+
 		callback = function(error, result){
 			if(error){
 				console.error("UserApp error: " + error.name + ": " + error.message);
@@ -109,53 +378,30 @@ JsonpTransport.prototype.call = function(sender, version, method, arguments, cal
 		}
 	}
 
-	var protocol = UserApp.global.secure ? 'https' : 'http';
-	var encodedArguments = UserApp.Transport.encodeArguments(serviceArguments);
-	var requestUrl = protocol + "://" + this.baseAddress + "/v" + version + "/" + method + "?" + encodedArguments;
+	httpRequest.create('POST', targetPath, arguments, function(error, result){
+		var logs = null;
 
-	if(visit){
-		document.location = requestUrl;
-		return;
-	}
-
-    var script = document.createElement('script');
-
-    script.setAttribute('async', true);
-    script.setAttribute('src', requestUrl);
-    script.setAttribute('type', 'text/javascript');
-
-    if(callback){
-	    this.callbacks[callbackId] = callback;
-
-	    cleanupRequest = function(){
-	    	delete window[callbackId];
-	    	delete outerScope.callbacks[callbackId];
-	    };
-	    
-	    timeoutCallback = setTimeout(function(){
-	    	outerScope.callbacks[callbackId]({name:'TIMED_OUT', message:'Request timed out'});
-	    	cleanupRequest();
-	    }, this.msTimeout);
-	}
-
-    window[callbackId] = function(result){
-    	var logs = null;
-
-		if(result.__logs){
-			logs = result.__logs;
-			delete result["__logs"];
+		if(error){
+			return callback(error);
 		}
 
-		if (result instanceof Array) {
-			if(result.length > 0){
-				var lastChild = result[result.length-1];
+		var innerResult = result.response;
+
+		if(innerResult.__logs){
+			logs = innerResult.__logs;
+			delete innerResult["__logs"];
+		}
+
+		if (innerResult instanceof Array) {
+			if(innerResult.length > 0){
+				var lastChild = innerResult[innerResult.length-1];
 				if(lastChild && lastChild.__logs){
-					logs = result.pop().__logs;
+					logs = innerResult.pop().__logs;
 				}
 			}
 		}
 
-		if(logs && UserApp.global.debug){
+		if(logs && isDebugMode){
 			for(var i=0;i<logs.length;++i){
 				var log = logs[i];
 				var message = typeof log.message == 'object' ? JSON.stringify(log.message) : log.message;
@@ -164,26 +410,16 @@ JsonpTransport.prototype.call = function(sender, version, method, arguments, cal
 			logs = null;
 		}
 
-    	if(callbackId in outerScope.callbacks){
-	    	if(timeoutCallback){
-	    		clearTimeout(timeoutCallback);
-    		}
-
-	    	if(result.error_code){
-	    		outerScope.callbacks[callbackId]({name: result.error_code, message: result.message});
-	    	}else{
-	    		outerScope.callbacks[callbackId](null, result);
-	    	}
-
-	    	if(cleanupRequest){
-	    		cleanupRequest();
-	    	}
+    	if(innerResult.error_code){
+    		callback({name: innerResult.error_code, message: innerResult.message});
+    	}else{
+    		callback(null, innerResult);
     	}
-    };
-
-    document.getElementsByTagName('head')[0]
-    	.appendChild(script);
+	});
 };
+
+UserApp.Transport = {};
+UserApp.Transport.Current = new Transport();
 
 // Helper function used to initialize the library.
 UserApp.initialize = function(settings){
@@ -198,7 +434,6 @@ UserApp.initialize = function(settings){
 // Set which base address to call. E.g. 'api.userapp.io'.
 UserApp.setBaseAddress = function(address){
 	this.global.baseAddress = address || 'api.userapp.io';
-	UserApp.Transport.Current = new UserApp.Transport.JsonpTransport();
 	return this;
 }
 
@@ -789,6 +1024,58 @@ UserApp.Invoice.prototype.remove = function(callback){
 	UserApp.Invoice.remove.call(this, callback);
 };
 
+// Charge
+
+UserApp.Charge = function(options){
+	options = options || {};
+	if(options.appId){
+		this.appId = options.appId;
+	}
+	if(options.token){
+		this.token = options.token;
+	}
+};
+
+// Get charges
+
+UserApp.Charge.get = function(arguments, callback){
+	UserApp.Transport.Current.call(this, 1, 'charge.get', arguments, callback);
+};
+
+UserApp.Charge.prototype.get = function(callback){
+	UserApp.Charge.get.call(this, callback);
+};
+
+// Search for charges
+
+UserApp.Charge.search = function(arguments, callback){
+	UserApp.Transport.Current.call(this, 1, 'charge.search', arguments, callback);
+};
+
+UserApp.Charge.prototype.search = function(callback){
+	UserApp.Charge.search.call(this, callback);
+};
+
+// Save a charge
+
+UserApp.Charge.save = function(arguments, callback){
+	UserApp.Transport.Current.call(this, 1, 'charge.save', arguments, callback);
+};
+
+UserApp.Charge.prototype.save = function(callback){
+	UserApp.Charge.save.call(this, callback);
+};
+
+// Remove a charge
+
+UserApp.Charge.remove = function(arguments, callback){
+	UserApp.Transport.Current.call(this, 1, 'charge.remove', arguments, callback);
+};
+
+UserApp.Charge.prototype.remove = function(callback){
+	UserApp.Charge.remove.call(this, callback);
+};
+
 // Plan
 
 UserApp.Plan = function(options){
@@ -849,38 +1136,6 @@ UserApp.Plan.remove = function(arguments, callback){
 
 UserApp.Plan.prototype.remove = function(callback){
 	UserApp.Plan.remove.call(this, callback);
-};
-
-// User Invoice
-
-UserApp.User.Invoice = function(options){
-	options = options || {};
-	if(options.appId){
-		this.appId = options.appId;
-	}
-	if(options.token){
-		this.token = options.token;
-	}
-};
-
-// Get invoices
-
-UserApp.User.Invoice.get = function(arguments, callback){
-	UserApp.Transport.Current.call(this, 1, 'user.invoice.get', arguments, callback);
-};
-
-UserApp.User.Invoice.prototype.get = function(callback){
-	UserApp.Plan.get.call(this, callback);
-};
-
-// Search for invoices
-
-UserApp.User.Invoice.search = function(arguments, callback){
-	UserApp.Transport.Current.call(this, 1, 'user.invoice.search', arguments, callback);
-};
-
-UserApp.User.Invoice.prototype.search = function(callback){
-	UserApp.Plan.search.call(this, callback);
 };
 
 // User Payment Method
