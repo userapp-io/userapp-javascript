@@ -1,4 +1,4 @@
-(function() {
+(function(undefined) {
     'use strict';
 
     var UserApp = function() {};
@@ -30,7 +30,7 @@
     // Copyright (c) 2010 Nick Galbreath
     // https://code.google.com/p/stringencoders/
 
-    Base64 = {};
+    var Base64 = function() {};
     Base64.PADCHAR = '=';
     Base64.ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
