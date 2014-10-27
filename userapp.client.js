@@ -1,5 +1,5 @@
 (function(undefined) {
-    'use strict';
+    //'use strict';
 
     var UserApp = function() {};
 
