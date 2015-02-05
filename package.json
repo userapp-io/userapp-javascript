@@ -1,0 +1,22 @@
+{
+  "name": "userapp-javascript",
+  "version": "1.2.3",
+  "description": "JavaScript client for accessing the UserApp API over JSONP/CORS.",
+  "main": "userapp.client.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/userapp-io/userapp-javascript.git"
+  },
+  "keywords": [
+    "userapp"
+  ],
+  "author": "UserApp",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/userapp-io/userapp-javascript/issues"
+  },
+  "homepage": "https://github.com/userapp-io/userapp-javascript"
+}
