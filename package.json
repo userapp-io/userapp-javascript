@@ -14,7 +14,7 @@
     "userapp"
   ],
   "author": "UserApp",
-  "license": "ISC",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/userapp-io/userapp-javascript/issues"
   },
